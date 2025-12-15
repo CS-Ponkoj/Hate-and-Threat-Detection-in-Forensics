@@ -59,6 +59,9 @@ EVIDENCE_COLUMNS = [
     "assoc_message_count",
     "assoc_window_before_s",
     "assoc_window_after_s",
+    "assoc_text_concat",
+    "assoc_messages_json",
+
 
     "has_any_text_context",
     "analysis_mode",
@@ -83,7 +86,7 @@ def ensure_evidence_csv(csv_path: str) -> pd.DataFrame:
     for col in EVIDENCE_COLUMNS:
         if col not in df.columns:
             df[col] = ""
-    return df[EVIDENCE_COLUMNS]
+    return df
 
 
 def truthy(val: Any) -> bool:

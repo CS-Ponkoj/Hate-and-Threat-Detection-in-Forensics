@@ -235,6 +235,8 @@ EVIDENCE_COLUMNS = [
     "assoc_message_count",
     "assoc_window_before_s",
     "assoc_window_after_s",
+    "assoc_text_concat",
+    "assoc_messages_json",
 
     # Derived decision fields
     "has_any_text_context",

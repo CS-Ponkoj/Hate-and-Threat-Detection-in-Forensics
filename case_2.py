@@ -18,6 +18,7 @@ Dependencies:
 from __future__ import annotations
 
 import csv
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -62,6 +63,21 @@ def is_meaningful_text(text: str, cfg: AssocTextConfig) -> bool:
     if len(t) <= 1:
         return False
     return True
+
+
+def _truthy(v: Any) -> bool:
+    """Robust bool parsing for values read from CSV."""
+    if v is None:
+        return False
+    if isinstance(v, bool):
+        return v
+    s = str(v).strip().lower()
+    if s in ("true", "1", "yes", "y"):
+        return True
+    if s in ("false", "0", "no", "n", "", "none", "nan"):
+        return False
+    # fallback: non-empty string treated as True is dangerous; default False
+    return False
 
 
 # -----------------------------
@@ -173,7 +189,7 @@ def detect_associated_text_sms(
 
 
 # -----------------------------
-# Evidence CSV update (matches case_1.py schema)
+# Evidence CSV update (matches case_1.py schema + adds text fields)
 # -----------------------------
 
 EVIDENCE_COLUMNS = [
@@ -198,6 +214,11 @@ EVIDENCE_COLUMNS = [
     "assoc_message_count",
     "assoc_window_before_s",
     "assoc_window_after_s",
+
+    # NEW (your requirements)
+    "assoc_text_concat",
+    "assoc_messages_json",
+
     "has_any_text_context",
     "analysis_mode",
     "last_updated_utc",
@@ -232,11 +253,8 @@ def recompute_derived_fields(df: pd.DataFrame, idx: int):
     embedded_raw = df.at[idx, "embedded_text_flag"]
     assoc_raw = df.at[idx, "associated_text_flag"]
 
-    embedded_known = str(embedded_raw).strip() != ""
-    assoc_known = str(assoc_raw).strip() != ""
-
-    embedded = bool(embedded_raw) if embedded_known else False
-    associated = bool(assoc_raw) if assoc_known else False
+    embedded = _truthy(embedded_raw)
+    associated = _truthy(assoc_raw)
 
     has_any = embedded or associated
     df.at[idx, "has_any_text_context"] = has_any
@@ -260,11 +278,21 @@ def update_case2_fields(
     df.at[idx, "anchor_timestamp_utc"] = result.get("anchor_timestamp_utc", "")
 
     # Case 2 fields
+    messages = result.get("associated_messages", []) or []
+
     df.at[idx, "assoc_check_ran"] = True
     df.at[idx, "associated_text_flag"] = bool(result.get("associated_text_flag", False))
-    df.at[idx, "assoc_message_count"] = len(result.get("associated_messages", []) or [])
+    df.at[idx, "assoc_message_count"] = len(messages)
     df.at[idx, "assoc_window_before_s"] = int(result.get("window_before_s", 0))
     df.at[idx, "assoc_window_after_s"] = int(result.get("window_after_s", 0))
+
+    # NEW: store text for later classification
+    # readable text
+    df.at[idx, "assoc_text_concat"] = " ".join(
+        [m.get("message_text", "").strip() for m in messages if (m.get("message_text", "") or "").strip()]
+    ).strip()
+    # full structured list
+    df.at[idx, "assoc_messages_json"] = json.dumps(messages, ensure_ascii=False)
 
     # Derived
     recompute_derived_fields(df, idx)
@@ -278,7 +306,7 @@ def update_case2_fields(
 if __name__ == "__main__":
     # ----------- CONFIG (defaults) -----------
     MEDIA_ID = "IMG_0346"  # fallback
-    SMS_TIMELINE_CSV = "Case_2_data/forensic_multimodal_evidence.csv"
+    SMS_TIMELINE_CSV = "forensic_multimodal_evidence.csv"
     EVIDENCE_CSV = "image_evidence.csv"
 
     CFG = AssocTextConfig(window_before_s=120, window_after_s=120)
