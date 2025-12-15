@@ -127,7 +127,23 @@ def detect_associated_text_sms(
       }
     """
     events = load_events(sms_csv_path)
-    anchor = find_image_anchor(events, media_id)
+    try:
+         anchor = find_image_anchor(events, media_id)
+    except ValueError:
+        # media_id not present in SMS export (common) -> treat as no associated text
+      return {
+        "media_id": media_id,
+        "thread_id": "",
+        "anchor_event_id": "",
+        "anchor_timestamp_utc": "",
+        "assoc_check_ran": True,
+        "associated_text_flag": False,
+        "assoc_message_count": 0,
+        "associated_messages": [],
+        "window_before_s": cfg.window_before_s,
+        "window_after_s": cfg.window_after_s,
+        "reason": "No anchor image event found in SMS export for this media_id; treating as no associated text.",
+      }
 
     thread_id = anchor["thread_id"]
     t0 = anchor["anchor_timestamp"]
@@ -222,6 +238,9 @@ EVIDENCE_COLUMNS = [
     "has_any_text_context",
     "analysis_mode",
     "last_updated_utc",
+
+    "case_label",
+    "case_reason"
 ]
 
 

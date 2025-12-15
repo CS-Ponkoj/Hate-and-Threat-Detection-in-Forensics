@@ -244,6 +244,9 @@ EVIDENCE_COLUMNS = [
 
     # Audit
     "last_updated_utc",
+
+     "case_label",
+    "case_reason"
 ]
 
 
