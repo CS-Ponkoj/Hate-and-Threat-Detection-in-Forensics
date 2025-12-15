@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -32,15 +31,8 @@ from PIL import Image, ImageOps
 import pytesseract
 from pytesseract import Output
 
-
-# -----------------------------
-# Tesseract config (safe)
-# -----------------------------
-# If Tesseract is on PATH, you do NOT need this.
-# If you're on Windows and it isn't on PATH, set it here.
-_TESSERACT_EXE = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-if os.path.exists(_TESSERACT_EXE):
-    pytesseract.pytesseract.tesseract_cmd = _TESSERACT_EXE
+# Windows-only: uncomment/adjust if needed
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
 # -----------------------------
@@ -216,7 +208,7 @@ EVIDENCE_COLUMNS = [
     "image_width",
     "image_height",
 
-    # Optional linking context (SMS thread) - Case 2 can fill later
+    # Optional linking context (SMS thread) - can be empty now; Case 2 can fill later
     "thread_id",
     "anchor_event_id",
     "anchor_timestamp_utc",
@@ -229,7 +221,7 @@ EVIDENCE_COLUMNS = [
     "ocr_character_count",
     "ocr_text_coverage",
 
-    # Case 2 fields (associated text)
+    # Case 2 fields (associated text) - filled by the other script
     "assoc_check_ran",
     "associated_text_flag",
     "assoc_message_count",
@@ -259,12 +251,14 @@ def sha256_file(path: str, chunk_size: int = 1024 * 1024) -> str:
 def ensure_evidence_csv(csv_path: str) -> pd.DataFrame:
     if os.path.exists(csv_path):
         df = pd.read_csv(csv_path)
+        # Add any missing columns for forward compatibility
         for col in EVIDENCE_COLUMNS:
             if col not in df.columns:
                 df[col] = ""
         df = df[EVIDENCE_COLUMNS]
         return df
 
+    # Create empty CSV with schema
     df = pd.DataFrame(columns=EVIDENCE_COLUMNS)
     df.to_csv(csv_path, index=False)
     return df
@@ -315,12 +309,10 @@ def update_case1_fields(
     df.at[idx, "ocr_character_count"] = metrics.get("character_count")
     df.at[idx, "ocr_text_coverage"] = metrics.get("text_coverage_ratio")
 
-    # Derived fields: embedded OR associated (if Case 2 already ran)
-    embedded = bool(df.at[idx, "embedded_text_flag"])
-
-    assoc_raw = df.at[idx, "associated_text_flag"]
-    assoc_known = str(assoc_raw).strip() != ""
-    associated = bool(assoc_raw) if assoc_known else False
+    # Derived fields (note: associated_text_flag may be empty until Case 2 runs)
+    embedded = bool(df.at[idx, "embedded_text_flag"]) if str(df.at[idx, "embedded_text_flag"]).strip() != "" else False
+    associated_raw = df.at[idx, "associated_text_flag"]
+    associated = bool(associated_raw) if str(associated_raw).strip() != "" else False
 
     has_any = embedded or associated
     df.at[idx, "has_any_text_context"] = has_any
@@ -330,31 +322,30 @@ def update_case1_fields(
     return df
 
 
+# -----------------------------
+# Main
+# -----------------------------
+
 def derive_media_id_from_path(image_path: str) -> str:
+    # Example: "IMG_0346.jpg" -> "IMG_0346"
     base = os.path.basename(image_path)
     return os.path.splitext(base)[0]
 
 
-# -----------------------------
-# Main
-# -----------------------------
 if __name__ == "__main__":
-    # ----------- CONFIG (defaults) -----------
+    # ----------- CONFIG -----------
     CASE_ID = "CASE-2025-001"
-    IMAGE_PATH = r"Case_1_data/text-image-title.png"  # fallback if no CLI arg
-    EVIDENCE_CSV = "image_evidence.csv"
+    IMAGE_PATH = r"Case_1_data/text-image-title.png"   # <-- change this
+    EVIDENCE_CSV = "image_evidence.csv"                 # output CSV
 
     # Optional override if you want a specific media_id
     MEDIA_ID: Optional[str] = None  # e.g., "IMG_0346"
 
+    # OCR thresholds (tune if needed)
     THRESHOLDS = Case1Thresholds(C_min=70.0, L_min_chars=8, A_min=0.005)
     OCR_LANG = "eng"
     TESS_CONFIG = "--oem 3 --psm 6"
-    # ----------------------------------------
-
-    # CLI override: python case_1.py path/to/image.jpg
-    if len(sys.argv) >= 2 and str(sys.argv[1]).strip():
-        IMAGE_PATH = sys.argv[1]
+    # ------------------------------
 
     if not os.path.exists(IMAGE_PATH):
         raise FileNotFoundError(f"Image not found: {IMAGE_PATH}")

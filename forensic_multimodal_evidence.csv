@@ -1,5 +1,5 @@
 case_id,thread_id,event_id,event_type,utc_timestamp,sender_id,message_text,media_id,media_file,embedded_text_flag,ocr_text,notes
 CASE-2025-001,SMS_THREAD_0007,EVT_000001,text,2025-01-12T14:22:58Z,+1775XXXXXXX,Look at this.,,,,,Pre-image contextual message
-CASE-2025-001,SMS_THREAD_0007,EVT_000002,image,2025-01-12T14:23:11Z,+1775XXXXXXX,,IMG_0346,IMG_0346.jpg,True,These people do not belong here We should deal with them,Image with embedded text (Case 1 trigger)
+CASE-2025-001,SMS_THREAD_0007,EVT_000002,image,2025-01-12T14:23:11Z,+1775XXXXXXX,,IMG_0346,IMG_0346.jpg,TRUE,These people do not belong here We should deal with them,Image with embedded text (Case 1 trigger)
 CASE-2025-001,SMS_THREAD_0007,EVT_000003,text,2025-01-12T14:23:18Z,+1775XXXXXXX,This is exactly what I mean.,,,,,Post-image associated text
 CASE-2025-001,SMS_THREAD_0007,EVT_000004,text,2025-01-12T14:25:40Z,+1775YYYYYYY,Stop sending that.,,,,,Response from another participant

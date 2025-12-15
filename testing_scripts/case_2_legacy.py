@@ -1,15 +1,10 @@
 """
-Case 2 check: "Image has associated nearby text" (SMS thread context)
-
-This script:
-- loads an SMS export timeline CSV (events)
-- finds the image event row for a given media_id (anchor)
-- searches for nearby TEXT events within a time window in the same thread
-- updates image_evidence.csv (one row per media_id) with Case 2 fields
-
-Usage:
-  python case_2.py IMG_0346
-  python case_2.py IMG_0346 Case_2_data/forensic_multimodal_evidence.csv
+Case 2 check (SMS associated text):
+- Reads a single SMS-thread timeline CSV (your forensic_multimodal_evidence.csv)
+- Finds the image anchor event for a given media_id
+- Collects nearby TEXT events within a configurable window
+- Outputs a structured decision record
+- Updates/creates image_evidence.csv (one row per image evidence item)
 
 Dependencies:
   pip install pandas
@@ -19,7 +14,6 @@ from __future__ import annotations
 
 import csv
 import os
-import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Tuple, Optional
@@ -28,7 +22,7 @@ import pandas as pd
 
 
 # -----------------------------
-# Config + helpers
+# Config + parsing utilities
 # -----------------------------
 
 @dataclass
@@ -46,13 +40,36 @@ class AssocTextConfig:
 
 def _parse_utc(ts: str) -> datetime:
     # Accepts "2025-01-12T14:23:11Z"
-    if (ts or "").endswith("Z"):
+    if ts.endswith("Z"):
         ts = ts[:-1] + "+00:00"
     return datetime.fromisoformat(ts).astimezone(timezone.utc)
 
 
 def _norm(s: str) -> str:
     return " ".join((s or "").strip().lower().split())
+
+
+def load_events(csv_path: str) -> List[Dict[str, str]]:
+    events: List[Dict[str, str]] = []
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            events.append(row)
+    return events
+
+
+def find_image_anchor(events: List[Dict[str, str]], media_id: str) -> Dict[str, Any]:
+    for row in events:
+        if _norm(row.get("event_type", "")) == "image" and _norm(row.get("media_id", "")) == _norm(media_id):
+            ts = _parse_utc(row["utc_timestamp"])
+            return {
+                "thread_id": row.get("thread_id", ""),
+                "anchor_event_id": row.get("event_id", ""),
+                "anchor_timestamp": ts,
+                "anchor_sender_id": row.get("sender_id", ""),
+                "row": row,
+            }
+    raise ValueError(f"Image event for media_id={media_id} not found in CSV: {csv_path}")
 
 
 def is_meaningful_text(text: str, cfg: AssocTextConfig) -> bool:
@@ -65,52 +82,15 @@ def is_meaningful_text(text: str, cfg: AssocTextConfig) -> bool:
 
 
 # -----------------------------
-# Load SMS events + detection
+# Case 2 detection
 # -----------------------------
 
-def load_events(csv_path: str) -> List[Dict[str, str]]:
-    events: List[Dict[str, str]] = []
-    with open(csv_path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            events.append(row)
-    return events
-
-
-def find_image_anchor(events: List[Dict[str, str]], media_id: str) -> Dict[str, Any]:
-    """
-    Finds the image event row for media_id.
-    Expected columns in SMS timeline CSV:
-      event_type, media_id, thread_id, event_id, utc_timestamp, sender_id
-    """
-    m = _norm(media_id)
-    for row in events:
-        if _norm(row.get("event_type", "")) == "image" and _norm(row.get("media_id", "")) == m:
-            ts = _parse_utc(row["utc_timestamp"])
-            return {
-                "thread_id": row.get("thread_id", ""),
-                "anchor_event_id": row.get("event_id", ""),
-                "anchor_timestamp": ts,
-                "anchor_sender_id": row.get("sender_id", ""),
-                "row": row,
-            }
-    raise ValueError(f"Image event for media_id={media_id} not found in SMS CSV: {media_id}")
-
-
 def detect_associated_text_sms(
-    sms_csv_path: str,
+    sms_timeline_csv: str,
     media_id: str,
     cfg: AssocTextConfig = AssocTextConfig(),
 ) -> Dict[str, Any]:
-    """
-    Returns:
-      {
-        media_id, thread_id, anchor_event_id, anchor_timestamp_utc,
-        associated_text_flag, associated_messages (list),
-        window_before_s, window_after_s, reason
-      }
-    """
-    events = load_events(sms_csv_path)
+    events = load_events(sms_timeline_csv)
     anchor = find_image_anchor(events, media_id)
 
     thread_id = anchor["thread_id"]
@@ -173,7 +153,7 @@ def detect_associated_text_sms(
 
 
 # -----------------------------
-# Evidence CSV update (matches case_1.py schema)
+# Evidence CSV update utilities
 # -----------------------------
 
 EVIDENCE_COLUMNS = [
@@ -187,17 +167,23 @@ EVIDENCE_COLUMNS = [
     "thread_id",
     "anchor_event_id",
     "anchor_timestamp_utc",
+
+    # Case 1 (OCR) fields (filled by Case 1 script)
     "ocr_ran",
     "embedded_text_flag",
     "ocr_text",
     "ocr_mean_confidence",
     "ocr_character_count",
     "ocr_text_coverage",
+
+    # Case 2 fields (this script fills)
     "assoc_check_ran",
     "associated_text_flag",
     "assoc_message_count",
     "assoc_window_before_s",
     "assoc_window_after_s",
+
+    # Derived
     "has_any_text_context",
     "analysis_mode",
     "last_updated_utc",
@@ -210,93 +196,78 @@ def ensure_evidence_csv(csv_path: str) -> pd.DataFrame:
         for col in EVIDENCE_COLUMNS:
             if col not in df.columns:
                 df[col] = ""
-        return df[EVIDENCE_COLUMNS]
+        df = df[EVIDENCE_COLUMNS]
+        return df
 
     df = pd.DataFrame(columns=EVIDENCE_COLUMNS)
     df.to_csv(csv_path, index=False)
     return df
 
 
-def upsert_min_row_if_missing(df: pd.DataFrame, media_id: str) -> pd.DataFrame:
-    if "media_id" not in df.columns:
-        df["media_id"] = ""
+def upsert_media_row_minimal(df: pd.DataFrame, case_id: str, media_id: str) -> pd.DataFrame:
     if (df["media_id"] == media_id).any():
         return df
     idx = len(df)
     df.loc[idx] = {col: "" for col in EVIDENCE_COLUMNS}
+    df.at[idx, "case_id"] = case_id
     df.at[idx, "media_id"] = media_id
     return df
 
 
-def recompute_derived_fields(df: pd.DataFrame, idx: int):
+def update_case2_fields(df: pd.DataFrame, media_id: str, assoc_result: Dict[str, Any]) -> pd.DataFrame:
+    idx = df.index[df["media_id"] == media_id][0]
+
+    df.at[idx, "assoc_check_ran"] = True
+    df.at[idx, "associated_text_flag"] = bool(assoc_result.get("associated_text_flag", False))
+    df.at[idx, "assoc_message_count"] = len(assoc_result.get("associated_messages", []))
+    df.at[idx, "assoc_window_before_s"] = assoc_result.get("window_before_s")
+    df.at[idx, "assoc_window_after_s"] = assoc_result.get("window_after_s")
+
+    # Also fill linking context if present
+    df.at[idx, "thread_id"] = assoc_result.get("thread_id", df.at[idx, "thread_id"])
+    df.at[idx, "anchor_event_id"] = assoc_result.get("anchor_event_id", df.at[idx, "anchor_event_id"])
+    df.at[idx, "anchor_timestamp_utc"] = assoc_result.get("anchor_timestamp_utc", df.at[idx, "anchor_timestamp_utc"])
+
+    # Derived fields (OCR may or may not already exist)
     embedded_raw = df.at[idx, "embedded_text_flag"]
-    assoc_raw = df.at[idx, "associated_text_flag"]
+    embedded = bool(embedded_raw) if str(embedded_raw).strip() != "" else False
 
-    embedded_known = str(embedded_raw).strip() != ""
-    assoc_known = str(assoc_raw).strip() != ""
-
-    embedded = bool(embedded_raw) if embedded_known else False
-    associated = bool(assoc_raw) if assoc_known else False
+    associated = bool(df.at[idx, "associated_text_flag"]) if str(df.at[idx, "associated_text_flag"]).strip() != "" else False
 
     has_any = embedded or associated
     df.at[idx, "has_any_text_context"] = has_any
     df.at[idx, "analysis_mode"] = "multimodal" if has_any else "image_only"
+
     df.at[idx, "last_updated_utc"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def update_case2_fields(
-    evidence_csv: str,
-    result: Dict[str, Any],
-) -> None:
-    df = ensure_evidence_csv(evidence_csv)
-    media_id = result["media_id"]
-    df = upsert_min_row_if_missing(df, media_id)
-
-    idx = df.index[df["media_id"] == media_id][0]
-
-    # Link context
-    df.at[idx, "thread_id"] = result.get("thread_id", "")
-    df.at[idx, "anchor_event_id"] = result.get("anchor_event_id", "")
-    df.at[idx, "anchor_timestamp_utc"] = result.get("anchor_timestamp_utc", "")
-
-    # Case 2 fields
-    df.at[idx, "assoc_check_ran"] = True
-    df.at[idx, "associated_text_flag"] = bool(result.get("associated_text_flag", False))
-    df.at[idx, "assoc_message_count"] = len(result.get("associated_messages", []) or [])
-    df.at[idx, "assoc_window_before_s"] = int(result.get("window_before_s", 0))
-    df.at[idx, "assoc_window_after_s"] = int(result.get("window_after_s", 0))
-
-    # Derived
-    recompute_derived_fields(df, idx)
-
-    df.to_csv(evidence_csv, index=False)
+    return df
 
 
 # -----------------------------
 # Main
 # -----------------------------
+
 if __name__ == "__main__":
-    # ----------- CONFIG (defaults) -----------
-    MEDIA_ID = "IMG_0346"  # fallback
-    SMS_TIMELINE_CSV = "Case_2_data/forensic_multimodal_evidence.csv"
-    EVIDENCE_CSV = "image_evidence.csv"
+    # ----------- CONFIG -----------
+    CASE_ID = "CASE-2025-001"
+    SMS_TIMELINE_CSV = r"Case_2_data/forensic_multimodal_evidence.csv"  # your timeline CSV
+    MEDIA_ID = "IMG_0346"
 
-    CFG = AssocTextConfig(window_before_s=120, window_after_s=120)
-    # ----------------------------------------
+    IMAGE_EVIDENCE_CSV = "image_evidence.csv"  # updated/created here
 
-    # CLI override:
-    #   python case_2.py <media_id> [sms_timeline_csv]
-    if len(sys.argv) >= 2 and str(sys.argv[1]).strip():
-        MEDIA_ID = sys.argv[1]
-    if len(sys.argv) >= 3 and str(sys.argv[2]).strip():
-        SMS_TIMELINE_CSV = sys.argv[2]
+    CFG = AssocTextConfig(window_before_s=120, window_after_s=120, exclude_system_like=True)
+    # ------------------------------
 
     if not os.path.exists(SMS_TIMELINE_CSV):
         raise FileNotFoundError(f"SMS timeline CSV not found: {SMS_TIMELINE_CSV}")
 
+    # Run Case 2 detection
     result = detect_associated_text_sms(SMS_TIMELINE_CSV, MEDIA_ID, cfg=CFG)
     print(result)
 
-    update_case2_fields(EVIDENCE_CSV, result)
+    # Update the image evidence CSV
+    df = ensure_evidence_csv(IMAGE_EVIDENCE_CSV)
+    df = upsert_media_row_minimal(df, case_id=CASE_ID, media_id=MEDIA_ID)
+    df = update_case2_fields(df, media_id=MEDIA_ID, assoc_result=result)
+    df.to_csv(IMAGE_EVIDENCE_CSV, index=False)
 
-    print(f"\nUpdated evidence CSV: {EVIDENCE_CSV} (media_id={MEDIA_ID})")
+    print(f"\nUpdated evidence CSV: {IMAGE_EVIDENCE_CSV} (media_id={MEDIA_ID})")

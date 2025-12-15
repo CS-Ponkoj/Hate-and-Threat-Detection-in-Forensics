@@ -1,0 +1,73 @@
+{
+  "neutral": [
+    "a neutral everyday photo",
+    "an ordinary harmless scene",
+    "a normal image with no aggression or hostility",
+    "a screenshot of a normal harmless conversation",
+    "a simple drawing of something harmless",
+    "a meme with neutral, non-hostile content"
+  ],
+
+  "obscene_or_insulting_content": [
+    "a photo of an obscene or rude gesture",
+    "a person showing an insulting hand gesture",
+    "a vulgar or obscene image meant to insult",
+    "a drawing of an obscene or insulting gesture",
+    "an icon representing an obscene or rude gesture",
+    "a meme containing obscene or insulting imagery",
+    "a screenshot containing obscene or insulting content"
+  ],
+
+  "harassment_or_intimidation": [
+    "a photo of someone harassing another person",
+    "a person intimidating or bullying someone",
+    "a hostile confrontation between people",
+    "a person yelling aggressively at someone",
+    "a scene showing coercion or intimidation",
+    "a screenshot showing harassment or intimidation",
+    "a meme depicting harassment or intimidation",
+    "a drawing of people harassing or intimidating someone"
+  ],
+
+  "threat_of_violence_or_crime": [
+    "a person threatening to physically harm someone",
+    "a scene suggesting an imminent violent threat",
+    "a threatening image implying physical harm",
+    "a person making a violent threat",
+    "a screenshot showing a threat of violence or crime",
+    "a meme depicting a violent or criminal threat",
+    "a drawing depicting a threat of violence"
+  ],
+
+  "physical_violence_or_criminal_act": [
+    "a photo of physical violence or assault",
+    "a person attacking another person",
+    "a fight between people",
+    "a scene showing someone being physically harmed",
+    "a violent criminal act in progress",
+    "a screenshot showing physical violence",
+    "a meme depicting physical violence",
+    "a drawing depicting a violent or criminal act"
+  ],
+
+  "weapon_present": [
+    "a photo of a weapon such as a gun or knife",
+    "a person holding a weapon",
+    "a visible weapon in the scene",
+    "a firearm or bladed weapon visible",
+    "a screenshot showing a weapon",
+    "a meme containing a weapon",
+    "a drawing of a weapon"
+  ],
+
+  "hate_or_extremist_ideology": [
+    "a photo of an extremist or hate group symbol",
+    "a hate group emblem or extremist insignia",
+    "an image containing racist or extremist symbolism",
+    "a symbol associated with a hate or extremist ideology",
+    "a Nazi or similar extremist symbol",
+    "a screenshot containing extremist ideology",
+    "a meme promoting hate or extremist ideology",
+    "a drawing of an extremist or hate group symbol"
+  ]
+}

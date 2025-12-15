@@ -1,8 +1,7 @@
 """
 openclip_test.py
 
-OpenCLIP ViT-L/14 prompt-ensembled classification using a JSON prompt bank,
-and appends results to an output CSV.
+OpenCLIP ViT-L/14 prompt-ensembled classification using a JSON prompt bank.
 
 Folder requirements:
   - openclip_test.py
@@ -13,19 +12,16 @@ Usage:
   python openclip_test.py Case_1_data\\IMG_0346.jpg
 
 Install:
-  pip install open_clip_torch torch torchvision pillow pandas
+  pip install open_clip_torch torch torchvision pillow
 """
 
 from __future__ import annotations
 
 import json
 import sys
-import secrets
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple
 
-import pandas as pd
 import torch
 from PIL import Image
 import open_clip
@@ -33,39 +29,7 @@ import open_clip
 
 # ---------- Model config ----------
 MODEL_NAME = "ViT-L-14"
-PRETRAINED = "laion2b_s32b_b82k"  # Valid tag in your open_clip install
-
-# Output CSV (created if missing)
-OUTPUT_CSV = "openclip_outputs.csv"
-
-# CSV schema (stable, append-only)
-CSV_COLUMNS = [
-    "run_id",
-    "created_utc",
-    "media_id",
-    "image_path",
-    "device",
-    "model_name",
-    "pretrained_tag",
-    "prompt_bank_file",
-    "top_class",
-    "top_prob",
-    "triage",
-    "probs_json",
-]
-
-
-def now_utc() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def make_run_id() -> str:
-    return f"{now_utc()}_{secrets.token_hex(3)}"
-
-
-def safe_media_id(image_path: str) -> str:
-    # media_id is file stem; change later if you want to map to your evidence CSV
-    return Path(image_path).stem
+PRETRAINED = "laion2b_s32b_b82k"  # Valid for your open_clip install
 
 
 # ---------- Prompt bank loader ----------
@@ -120,7 +84,9 @@ def encode_class_features(
     device: str,
 ) -> Tuple[List[str], torch.Tensor]:
     """
-    Returns class_names and class_features.
+    Returns:
+      class_names: list[str]
+      class_feats: tensor [C, D]
     Each class feature = normalized mean of its prompt embeddings.
     """
     class_names: List[str] = []
@@ -144,41 +110,16 @@ def encode_class_features(
 def triage_level(top_class: str) -> str:
     """
     Simple forensic triage mapping.
-    Adjust sets to match your prompt_bank.json keys.
+    Adjust as needed to match your course framing.
     """
-    high = {
-        "hate_or_extremist_ideology",
-        "physical_violence_or_criminal_act",
-        "threat_of_violence_or_crime",
-        "weapon_present",
-    }
-    review = {
-        "harassment_or_intimidation",
-        "obscene_or_insulting_content",
-    }
+    high = {"hate_or_extremist_ideology", "physical_violence_or_criminal_act", "threat_of_violence_or_crime", "weapon_present"}
+    review = {"harassment_or_intimidation", "obscene_or_insulting_content"}
 
     if top_class in high:
         return "high"
     if top_class in review:
         return "review"
     return "low"
-
-
-# ---------- CSV logging ----------
-def ensure_output_csv(csv_path: str):
-    path = Path(csv_path)
-    if not path.exists():
-        pd.DataFrame(columns=CSV_COLUMNS).to_csv(path, index=False)
-
-
-def append_output_row(csv_path: str, row: Dict[str, Any]):
-    ensure_output_csv(csv_path)
-    df = pd.read_csv(csv_path)
-
-    # Enforce schema order; fill missing keys with empty
-    ordered = {col: row.get(col, "") for col in CSV_COLUMNS}
-    df.loc[len(df)] = ordered
-    df.to_csv(csv_path, index=False)
 
 
 # ---------- Main ----------
@@ -194,52 +135,27 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device:", device)
 
-    prompt_bank_file = "prompt_bank.json"
-    prompt_bank = load_prompt_bank(prompt_bank_file)
-
+    prompt_bank = load_prompt_bank("prompt_bank.json")
     model, preprocess, tokenizer = load_model(device)
 
     img_feat = encode_image(model, preprocess, image_path, device)
     class_names, class_feats = encode_class_features(model, tokenizer, prompt_bank, device)
 
     with torch.no_grad():
-        logits = img_feat @ class_feats.T         # [1, C]
-        probs = logits.softmax(dim=-1)[0].cpu()   # [C]
+        logits = img_feat @ class_feats.T        # [1, C]
+        probs = logits.softmax(dim=-1)[0].cpu()  # [C]
 
-    # Build result dict
-    probs_dict = {cls: float(p) for cls, p in zip(class_names, probs.tolist())}
-    sorted_pairs = sorted(probs_dict.items(), key=lambda x: x[1], reverse=True)
+    # Print sorted results
+    pairs = sorted(zip(class_names, probs.tolist()), key=lambda x: x[1], reverse=True)
 
-    top_class, top_prob = sorted_pairs[0]
-    triage = triage_level(top_class)
-
-    # Print
     print("\nOpenCLIP ViT-L/14 (prompt-bank JSON + ensembling) results:\n")
-    for cls, p in sorted_pairs:
+    for cls, p in pairs:
         print(f"{cls:32s} → {p:.4f}")
 
+    top_class, top_prob = pairs[0]
     print("\nTop prediction:")
     print(f"{top_class} ({top_prob:.4f})")
-    print("Triage:", triage)
-
-    # Append to CSV
-    row = {
-        "run_id": make_run_id(),
-        "created_utc": now_utc(),
-        "media_id": safe_media_id(image_path),
-        "image_path": str(Path(image_path).resolve()),
-        "device": device,
-        "model_name": MODEL_NAME,
-        "pretrained_tag": PRETRAINED,
-        "prompt_bank_file": prompt_bank_file,
-        "top_class": top_class,
-        "top_prob": top_prob,
-        "triage": triage,
-        "probs_json": json.dumps(probs_dict, ensure_ascii=False),
-    }
-
-    append_output_row(OUTPUT_CSV, row)
-    print(f"\nSaved to CSV: {Path(OUTPUT_CSV).resolve()}")
+    print("Triage:", triage_level(top_class))
 
 
 if __name__ == "__main__":

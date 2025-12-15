@@ -11,7 +11,8 @@ from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 
 # 1. Load model and processor
-model_name = "openai/clip-vit-base-patch32"
+# model_name = "openai/clip-vit-base-patch32"
+model_name = "openai/clip-vit-large-patch14"
 model = CLIPModel.from_pretrained(model_name)
 processor = CLIPProcessor.from_pretrained(model_name)
 
