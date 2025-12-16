@@ -1,0 +1,6 @@
+ran_ok
+utc=2025-12-16T03:37:21.949080Z
+cwd=C:\Users\cspon\OneDrive - University of Nevada, Reno\Hate_and_Threat_Detection_in_forensics
+media_id=weapon_2
+report=C:\Users\cspon\OneDrive - University of Nevada, Reno\Hate_and_Threat_Detection_in_forensics\forensic_multimodal_evidence.csv
+master_out=C:\Users\cspon\OneDrive - University of Nevada, Reno\Hate_and_Threat_Detection_in_forensics\text_master_output.csv
