@@ -1,8 +1,0 @@
-media_id,file_path,file_name,has_assoc_text,has_ocr_text,ocr_text_unscored,decision_source,final_label,final_score,needs_review,text_best_label,text_best_score,mapped_text,clip_top_class,clip_top_prob,clip_triage,clip_probs_json
-NaT,NaT,NaT,TRUE,FALSE,FALSE,image_plus_associated_text,NaT,0,TRUE,NaT,0,NaT,NaT,0,NaT,
-test_violence,Case_1_data\test_violence.webp,test_violence.webp,FALSE,FALSE,FALSE,image_only,unknown,0,FALSE,,0,,,0,,
-weapon_2,Case_1_data\weapon_2.webp,weapon_2.webp,TRUE,FALSE,FALSE,image_plus_associated_text,neutral_or_contextual,0.341749668,FALSE,neutral_or_contextual,0.341749668,Check this out.,,0,,
-hate_4,Case_1_data\hate_4.jpg,hate_4.jpg,TRUE,FALSE,FALSE,image_plus_associated_text,neutral_or_contextual,0,FALSE,,0,,hate_or_extremist_ideology,0.155882254,high,"{""neutral"": 0.14142291247844696, ""obscene_or_insulting_content"": 0.13660091161727905, ""harassment_or_intimidation"": 0.14278890192508698, ""threat_of_violence_or_crime"": 0.144204244017601, ""physical_violence_or_criminal_act"": 0.14311575889587402, ""weapon_present"": 0.13598506152629852, ""hate_or_extremist_ideology"": 0.15588225424289703}"
-IMG_0346,Case_1_data\IMG_0346.jpg,IMG_0346.jpg,TRUE,TRUE,FALSE,image_plus_associated_text,neutral_or_contextual,0,FALSE,,0,,,0,,
-Vio_48,Case_1_data\Vio_48.jpg,Vio_48.jpg,FALSE,FALSE,FALSE,image_only,unknown,0,FALSE,,0,,,0,,
-Vio_13,Case_1_data\Vio_13.jpg,Vio_13.jpg,FALSE,FALSE,FALSE,image_only,unknown,0,FALSE,,0,,,0,,

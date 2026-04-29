@@ -1,5 +1,5 @@
 """
-Case statistics summary for multimodal forensic pipeline
+Case statistics summary for multimodal forensic pipeline.
 
 Reads image_evidence.csv and reports:
 - total images processed
@@ -9,12 +9,15 @@ Reads image_evidence.csv and reports:
 
 import pandas as pd
 
+from forensic_pipeline.paths import IMAGE_EVIDENCE_CSV
+from forensic_pipeline.pipeline_utils import drop_blank_rows
 
-EVIDENCE_CSV = "image_evidence.csv"
+
+EVIDENCE_CSV = IMAGE_EVIDENCE_CSV
 
 
 def main():
-    df = pd.read_csv(EVIDENCE_CSV)
+    df = drop_blank_rows(pd.read_csv(EVIDENCE_CSV))
 
     if df.empty:
         print("No evidence records found.")
@@ -25,9 +28,6 @@ def main():
     print("\n=== Pipeline Statistics Summary ===\n")
     print(f"Total images processed: {total}\n")
 
-    # -------------------------
-    # Case label statistics
-    # -------------------------
     print("Routing by case_label:")
     case_counts = df["case_label"].fillna("missing").value_counts()
 
@@ -35,9 +35,6 @@ def main():
         pct = (count / total) * 100
         print(f"  {label:20s} : {count:3d} ({pct:5.1f}%)")
 
-    # -------------------------
-    # Analysis mode statistics
-    # -------------------------
     print("\nDistribution by analysis_mode:")
     mode_counts = df["analysis_mode"].fillna("missing").value_counts()
 
@@ -45,12 +42,9 @@ def main():
         pct = (count / total) * 100
         print(f"  {mode:20s} : {count:3d} ({pct:5.1f}%)")
 
-    # -------------------------
-    # Sanity checks
-    # -------------------------
     incomplete = (df["case_label"] == "incomplete").sum()
     if incomplete > 0:
-        print(f"\n⚠ Warning: {incomplete} image(s) marked as incomplete")
+        print(f"\nWarning: {incomplete} image(s) marked as incomplete")
 
     print("\n=== End of Summary ===\n")
 

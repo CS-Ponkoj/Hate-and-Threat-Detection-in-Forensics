@@ -1,0 +1,14 @@
+media_id,file_path,file_name,has_assoc_text,has_ocr_text,ocr_text_unscored,decision_source,final_label,final_score,needs_review,text_best_label,text_best_score,mapped_text,clip_top_class,clip_top_prob,clip_triage,clip_probs_json
+NaT,NaT,NaT,True,False,False,image_plus_associated_text,NaT,0.0,True,NaT,0.0,NaT,NaT,0.0,NaT,
+test_violence,Case_1_data\test_violence.webp,test_violence.webp,False,False,False,image_only,unknown,0.0,False,,0.0,,,0.0,,
+weapon_2,Case_1_data\weapon_2.webp,weapon_2.webp,True,False,False,image_plus_associated_text,neutral_or_contextual,0.341749668,False,neutral_or_contextual,0.341749668,Check this out.,weapon_present,0.1545459628105163,high,"{""neutral"": 0.1408969908952713, ""obscene_or_insulting_content"": 0.1323949694633484, ""harassment_or_intimidation"": 0.13913442194461823, ""threat_of_violence_or_crime"": 0.14872704446315765, ""physical_violence_or_criminal_act"": 0.1456274390220642, ""weapon_present"": 0.15454596281051636, ""hate_or_extremist_ideology"": 0.1386731117963791}"
+hate_4,Case_1_data\hate_4.jpg,hate_4.jpg,True,False,False,image_plus_associated_text,neutral_or_contextual,0.0,False,,0.0,,hate_or_extremist_ideology,0.155882254,high,"{""neutral"": 0.14142291247844696, ""obscene_or_insulting_content"": 0.13660091161727905, ""harassment_or_intimidation"": 0.14278890192508698, ""threat_of_violence_or_crime"": 0.144204244017601, ""physical_violence_or_criminal_act"": 0.14311575889587402, ""weapon_present"": 0.13598506152629852, ""hate_or_extremist_ideology"": 0.15588225424289703}"
+IMG_0346,Case_1_data\IMG_0346.jpg,IMG_0346.jpg,True,True,False,image_plus_associated_text,neutral_or_contextual,0.0,False,,0.0,,,0.0,,
+Vio_48,Case_1_data\Vio_48.jpg,Vio_48.jpg,False,False,False,image_only,unknown,0.0,False,,0.0,,,0.0,,
+Vio_13,Case_1_data\Vio_13.jpg,Vio_13.jpg,False,False,False,image_only,unknown,0.0,False,,0.0,,,0.0,,
+Vio_40,Case_1_data\Vio_40.jpg,Vio_40.jpg,False,False,False,image_only,unknown,0.0,False,,0.0,,,0.0,,
+Vio_42,Case_1_data\Vio_42.jpg,Vio_42.jpg,False,False,False,image_only,unknown,0.0,False,,0.0,,,0.0,,
+Vio_21,Case_1_data\Vio_21.jpg,Vio_21.jpg,False,False,False,image_only,unknown,0.0,False,,0.0,,,0.0,,
+Vio_32,Case_1_data\Vio_32.jpg,Vio_32.jpg,False,False,False,image_only,physical_violence_or_criminal_act,0.1515385508537292,False,,0.0,,physical_violence_or_criminal_act,0.1515385508537292,high,"{""neutral"": 0.1405920833349228, ""obscene_or_insulting_content"": 0.13498349487781525, ""harassment_or_intimidation"": 0.1488683670759201, ""threat_of_violence_or_crime"": 0.1495821177959442, ""physical_violence_or_criminal_act"": 0.15153855085372925, ""weapon_present"": 0.1364593654870987, ""hate_or_extremist_ideology"": 0.1379760056734085}"
+Vio_4,Case_1_Data\Vio_4.jpg,Vio_4.jpg,False,False,False,image_only,unknown,0.0,False,,0.0,,,0.0,,
+Case_1_Data\Vio_4.jpg,,,False,False,False,image_only,unknown,0.0,False,,0.0,,,0.0,,

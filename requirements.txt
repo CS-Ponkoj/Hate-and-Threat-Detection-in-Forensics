@@ -1,0 +1,9 @@
+pandas>=2.0
+pillow>=10.0
+pytesseract>=0.3.10
+torch>=2.1
+torchvision>=0.16
+transformers>=4.40
+sentencepiece>=0.2
+open_clip_torch>=2.24
+pytest>=8.0

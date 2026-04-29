@@ -8,8 +8,8 @@ This script:
 - updates image_evidence.csv (one row per media_id) with Case 2 fields
 
 Usage:
-  python case_2.py IMG_0346
-  python case_2.py IMG_0346 Case_2_data/forensic_multimodal_evidence.csv
+  python -m forensic_pipeline.case_2 IMG_0346
+  python -m forensic_pipeline.case_2 IMG_0346 data/raw/forensic_multimodal_evidence.csv
 
 Dependencies:
   pip install pandas
@@ -26,6 +26,9 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Tuple, Optional
 
 import pandas as pd
+
+from forensic_pipeline.paths import FORENSIC_TIMELINE_CSV, IMAGE_EVIDENCE_CSV, project_path
+from forensic_pipeline.pipeline_utils import drop_blank_rows, truthy
 
 
 # -----------------------------
@@ -63,21 +66,6 @@ def is_meaningful_text(text: str, cfg: AssocTextConfig) -> bool:
     if len(t) <= 1:
         return False
     return True
-
-
-def _truthy(v: Any) -> bool:
-    """Robust bool parsing for values read from CSV."""
-    if v is None:
-        return False
-    if isinstance(v, bool):
-        return v
-    s = str(v).strip().lower()
-    if s in ("true", "1", "yes", "y"):
-        return True
-    if s in ("false", "0", "no", "n", "", "none", "nan"):
-        return False
-    # fallback: non-empty string treated as True is dangerous; default False
-    return False
 
 
 # -----------------------------
@@ -246,7 +234,7 @@ EVIDENCE_COLUMNS = [
 
 def ensure_evidence_csv(csv_path: str) -> pd.DataFrame:
     if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path)
+        df = drop_blank_rows(pd.read_csv(csv_path))
         for col in EVIDENCE_COLUMNS:
             if col not in df.columns:
                 df[col] = ""
@@ -272,8 +260,8 @@ def recompute_derived_fields(df: pd.DataFrame, idx: int):
     embedded_raw = df.at[idx, "embedded_text_flag"]
     assoc_raw = df.at[idx, "associated_text_flag"]
 
-    embedded = _truthy(embedded_raw)
-    associated = _truthy(assoc_raw)
+    embedded = truthy(embedded_raw)
+    associated = truthy(assoc_raw)
 
     has_any = embedded or associated
     df.at[idx, "has_any_text_context"] = has_any
@@ -300,7 +288,7 @@ def update_case2_fields(
     messages = result.get("associated_messages", []) or []
 
     df.at[idx, "assoc_check_ran"] = True
-    df.at[idx, "associated_text_flag"] = bool(result.get("associated_text_flag", False))
+    df.at[idx, "associated_text_flag"] = truthy(result.get("associated_text_flag", False))
     df.at[idx, "assoc_message_count"] = len(messages)
     df.at[idx, "assoc_window_before_s"] = int(result.get("window_before_s", 0))
     df.at[idx, "assoc_window_after_s"] = int(result.get("window_after_s", 0))
@@ -325,18 +313,18 @@ def update_case2_fields(
 if __name__ == "__main__":
     # ----------- CONFIG (defaults) -----------
     MEDIA_ID = "IMG_0346"  # fallback
-    SMS_TIMELINE_CSV = "forensic_multimodal_evidence.csv"
-    EVIDENCE_CSV = "image_evidence.csv"
+    SMS_TIMELINE_CSV = FORENSIC_TIMELINE_CSV
+    EVIDENCE_CSV = IMAGE_EVIDENCE_CSV
 
     CFG = AssocTextConfig(window_before_s=120, window_after_s=120)
     # ----------------------------------------
 
     # CLI override:
-    #   python case_2.py <media_id> [sms_timeline_csv]
+    #   python -m forensic_pipeline.case_2 <media_id> [sms_timeline_csv]
     if len(sys.argv) >= 2 and str(sys.argv[1]).strip():
         MEDIA_ID = sys.argv[1]
     if len(sys.argv) >= 3 and str(sys.argv[2]).strip():
-        SMS_TIMELINE_CSV = sys.argv[2]
+        SMS_TIMELINE_CSV = project_path(sys.argv[2])
 
     if not os.path.exists(SMS_TIMELINE_CSV):
         raise FileNotFoundError(f"SMS timeline CSV not found: {SMS_TIMELINE_CSV}")

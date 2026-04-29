@@ -32,6 +32,9 @@ from PIL import Image, ImageOps
 import pytesseract
 from pytesseract import Output
 
+from forensic_pipeline.paths import IMAGE_EVIDENCE_CSV, RAW_DATA_DIR, project_path
+from forensic_pipeline.pipeline_utils import drop_blank_rows, truthy
+
 
 # -----------------------------
 # Tesseract config (safe)
@@ -263,7 +266,7 @@ def sha256_file(path: str, chunk_size: int = 1024 * 1024) -> str:
 
 def ensure_evidence_csv(csv_path: str) -> pd.DataFrame:
     if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path)
+        df = drop_blank_rows(pd.read_csv(csv_path))
         for col in EVIDENCE_COLUMNS:
             if col not in df.columns:
                 df[col] = ""
@@ -312,7 +315,7 @@ def update_case1_fields(
     idx = df.index[df["media_id"] == media_id][0]
 
     df.at[idx, "ocr_ran"] = True
-    df.at[idx, "embedded_text_flag"] = bool(ocr_result.get("embedded_text_flag", False))
+    df.at[idx, "embedded_text_flag"] = truthy(ocr_result.get("embedded_text_flag", False))
     df.at[idx, "ocr_text"] = ocr_result.get("extracted_text", "")
 
     metrics = ocr_result.get("metrics", {}) or {}
@@ -321,11 +324,11 @@ def update_case1_fields(
     df.at[idx, "ocr_text_coverage"] = metrics.get("text_coverage_ratio")
 
     # Derived fields: embedded OR associated (if Case 2 already ran)
-    embedded = bool(df.at[idx, "embedded_text_flag"])
+    embedded = truthy(df.at[idx, "embedded_text_flag"])
 
     assoc_raw = df.at[idx, "associated_text_flag"]
     assoc_known = str(assoc_raw).strip() != ""
-    associated = bool(assoc_raw) if assoc_known else False
+    associated = truthy(assoc_raw) if assoc_known else False
 
     has_any = embedded or associated
     df.at[idx, "has_any_text_context"] = has_any
@@ -346,8 +349,8 @@ def derive_media_id_from_path(image_path: str) -> str:
 if __name__ == "__main__":
     # ----------- CONFIG (defaults) -----------
     CASE_ID = "CASE-2025-001"
-    IMAGE_PATH = r"Case_1_data/text-image-title.png"  # fallback if no CLI arg
-    EVIDENCE_CSV = "image_evidence.csv"
+    IMAGE_PATH = RAW_DATA_DIR / "Case_1_data" / "text-image-title.png"  # fallback if no CLI arg
+    EVIDENCE_CSV = IMAGE_EVIDENCE_CSV
 
     # Optional override if you want a specific media_id
     MEDIA_ID: Optional[str] = None  # e.g., "IMG_0346"
@@ -357,9 +360,9 @@ if __name__ == "__main__":
     TESS_CONFIG = "--oem 3 --psm 6"
     # ----------------------------------------
 
-    # CLI override: python case_1.py path/to/image.jpg
+    # CLI override: python -m forensic_pipeline.case_1 path/to/image.jpg
     if len(sys.argv) >= 2 and str(sys.argv[1]).strip():
-        IMAGE_PATH = sys.argv[1]
+        IMAGE_PATH = project_path(sys.argv[1])
 
     if not os.path.exists(IMAGE_PATH):
         raise FileNotFoundError(f"Image not found: {IMAGE_PATH}")

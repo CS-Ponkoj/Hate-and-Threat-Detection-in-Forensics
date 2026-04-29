@@ -7,14 +7,16 @@ from typing import Dict, Any, Tuple, List, Optional
 
 import pandas as pd
 
+from forensic_pipeline.paths import FUSED_DECISIONS_CSV, IMAGE_EVIDENCE_CSV, OPENCLIP_OUTPUTS_CSV, TEXT_EVIDENCE_CSV, project_path
+from forensic_pipeline.pipeline_utils import drop_blank_rows, safe_str
+
 
 # =============================
 # CONFIG
 # =============================
-IMAGE_EVIDENCE_CSV = "image_evidence.csv"
-CLIP_CSV = "openclip_outputs.csv"
-TEXT_CSV = "text_evidence.csv"
-OUT_CSV = "multimodal_fused_decisions.csv"
+CLIP_CSV = OPENCLIP_OUTPUTS_CSV
+TEXT_CSV = TEXT_EVIDENCE_CSV
+OUT_CSV = FUSED_DECISIONS_CSV
 
 # --- Text source column in text_evidence.csv ---
 TEXT_SOURCE_COL = "text_source"  # must be 'assoc' or 'ocr' per row
@@ -55,13 +57,13 @@ HIGH_RISK_LABELS = {
 # If your CLIP prompt classes ALREADY equal frozen labels, leave this empty {} and we will use identity.
 # Otherwise, fill this mapping with your prompt-bank class names as keys.
 CLIP_TO_FROZEN: Dict[str, str] = {
-    # Examples (edit to match your prompt_bank.json classes):
-    # "weapon_or_armed_person": "weapon_related_text",
-    # "violence_or_gore": "incitement_or_endorsement_of_violence",
-    # "threat_or_intimidation": "threat_of_violence",
-    # "hate_symbol_or_extremist": "hate_or_bias_based_content",
-    # "self_harm": "self_harm_or_suicide_risk",
-    # "sexual_violence": "sexual_violence_or_exploitation",
+    "neutral": "neutral_or_contextual",
+    "obscene_or_insulting_content": "abusive_or_obscene_language",
+    "harassment_or_intimidation": "harassment_or_intimidation",
+    "threat_of_violence_or_crime": "threat_of_violence",
+    "physical_violence_or_criminal_act": "incitement_or_endorsement_of_violence",
+    "weapon_present": "weapon_related_text",
+    "hate_or_extremist_ideology": "hate_or_bias_based_content",
 }
 
 
@@ -72,15 +74,6 @@ def read_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"Missing CSV: {path}")
     return pd.read_csv(path)
-
-
-def safe_str(x: Any) -> str:
-    if x is None:
-        return ""
-    s = str(x)
-    if s.lower() in {"nan", "none"}:
-        return ""
-    return s
 
 
 def normalize_case_label(x: Any) -> str:
@@ -147,10 +140,12 @@ def latest_text_by_source(
     if "media_id" not in df.columns:
         raise ValueError("text_evidence.csv missing 'media_id' column")
     if TEXT_SOURCE_COL not in df.columns:
-        raise ValueError(
-            f"text_evidence.csv must contain '{TEXT_SOURCE_COL}' with values '{ASSOC_VALUE}' and '{OCR_VALUE}'. "
-            f"Found columns: {list(df.columns)}"
-        )
+        df = df.copy()
+        df[TEXT_SOURCE_COL] = ASSOC_VALUE
+    else:
+        df = df.copy()
+        blank_source = df[TEXT_SOURCE_COL].map(lambda value: not safe_str(value).strip())
+        df.loc[blank_source, TEXT_SOURCE_COL] = ASSOC_VALUE
 
     sub = df[(df["media_id"].astype(str) == str(media_id)) & (df[TEXT_SOURCE_COL].astype(str) == source_value)].copy()
     if sub.empty:
@@ -273,15 +268,15 @@ def weighted_fuse(
 # Main
 # =============================
 def main() -> None:
-    # python fusion_runner.py [image_evidence.csv] [openclip_outputs.csv] [text_evidence.csv] [out.csv]
-    image_path = Path(sys.argv[1]) if len(sys.argv) >= 2 else Path(IMAGE_EVIDENCE_CSV)
-    clip_path = Path(sys.argv[2]) if len(sys.argv) >= 3 else Path(CLIP_CSV)
-    text_path = Path(sys.argv[3]) if len(sys.argv) >= 4 else Path(TEXT_CSV)
-    out_path = Path(sys.argv[4]) if len(sys.argv) >= 5 else Path(OUT_CSV)
+    # python -m forensic_pipeline.fusion_runner [image_evidence.csv] [openclip_outputs.csv] [text_evidence.csv] [out.csv]
+    image_path = project_path(sys.argv[1]) if len(sys.argv) >= 2 else Path(IMAGE_EVIDENCE_CSV)
+    clip_path = project_path(sys.argv[2]) if len(sys.argv) >= 3 else Path(CLIP_CSV)
+    text_path = project_path(sys.argv[3]) if len(sys.argv) >= 4 else Path(TEXT_CSV)
+    out_path = project_path(sys.argv[4]) if len(sys.argv) >= 5 else Path(OUT_CSV)
 
-    img_df = read_csv(image_path)
-    clip_df = read_csv(clip_path)
-    text_df = read_csv(text_path)
+    img_df = drop_blank_rows(read_csv(image_path))
+    clip_df = drop_blank_rows(read_csv(clip_path))
+    text_df = drop_blank_rows(read_csv(text_path))
 
     if "media_id" not in img_df.columns:
         raise ValueError("image_evidence.csv must contain 'media_id'")

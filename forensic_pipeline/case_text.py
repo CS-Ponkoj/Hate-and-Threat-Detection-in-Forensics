@@ -9,12 +9,17 @@ import pandas as pd
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+from forensic_pipeline.paths import FORENSIC_TIMELINE_CSV, IMAGE_EVIDENCE_CSV, TEXT_EVIDENCE_CSV, project_path
+from forensic_pipeline.pipeline_utils import drop_blank_rows, safe_str
+
 
 # -----------------------------
 # Config
 # -----------------------------
-FORENSIC_REPORT_CSV = "forensic_multimodal_evidence.csv"
-DEFAULT_OUTPUT_CSV = "text_evidence.csv"
+FORENSIC_REPORT_CSV = FORENSIC_TIMELINE_CSV
+DEFAULT_OUTPUT_CSV = TEXT_EVIDENCE_CSV
+ASSOC_SOURCE = "assoc"
+OCR_SOURCE = "ocr"
 
 # Default (you can override from CLI)
 DEFAULT_MODEL = "MoritzLaurer/deberta-v3-large-zeroshot-v2.0"
@@ -46,6 +51,50 @@ def utc_now() -> str:
 
 def media_id_from_image_path(image_path: str) -> str:
     return Path(image_path).stem
+
+
+def split_context_text(text: str) -> List[str]:
+    cleaned = safe_str(text).strip()
+    return [cleaned] if cleaned else []
+
+
+def texts_from_image_evidence(media_id: str, text_source: str, csv_path: str = IMAGE_EVIDENCE_CSV) -> List[str]:
+    path = Path(csv_path)
+    if not path.exists():
+        return []
+
+    df = drop_blank_rows(pd.read_csv(path))
+    if "media_id" not in df.columns:
+        return []
+
+    sub = df[df["media_id"].astype(str) == str(media_id)]
+    if sub.empty:
+        return []
+
+    row = sub.iloc[-1]
+    if text_source == ASSOC_SOURCE:
+        return split_context_text(row.get("assoc_text_concat", ""))
+    if text_source == OCR_SOURCE:
+        return split_context_text(row.get("ocr_text", ""))
+    raise ValueError(f"text_source must be '{ASSOC_SOURCE}' or '{OCR_SOURCE}', got: {text_source}")
+
+
+def texts_from_forensic_report(media_id: str, csv_path: str = FORENSIC_REPORT_CSV) -> List[str]:
+    report_path = Path(csv_path)
+    if not report_path.exists():
+        return []
+
+    print("[A] Reading forensic report CSV...")
+    df = pd.read_csv(report_path)
+
+    required_cols = {"event_type", "media_id", "message_text"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns in {csv_path}: {sorted(missing)}")
+
+    print("[B] Filtering text rows for media_id...")
+    df_sub = df[(df["event_type"] == "text") & (df["media_id"].astype(str) == str(media_id))].copy()
+    return [t.strip() for t in df_sub["message_text"].fillna("").astype(str).tolist() if t and t.strip()]
 
 
 def get_entailment_index(model) -> int:
@@ -141,7 +190,7 @@ def classify_texts_zero_shot(
 # -----------------------------
 def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: python case_text.py path/to/image.jpg [output_csv] [model_name]")
+        print("Usage: python -m forensic_pipeline.case_text path/to/image.jpg [output_csv] [model_name] [assoc|ocr]")
         print(f"Default model: {DEFAULT_MODEL}")
         print(f"Fallback model: {FALLBACK_MODEL}")
         raise SystemExit(1)
@@ -150,32 +199,23 @@ def main() -> None:
     if not Path(image_path).exists():
         raise FileNotFoundError(f"Image not found: {image_path}")
 
-    output_csv = Path(sys.argv[2]) if len(sys.argv) >= 3 else Path(DEFAULT_OUTPUT_CSV)
+    output_csv = project_path(sys.argv[2]) if len(sys.argv) >= 3 else Path(DEFAULT_OUTPUT_CSV)
     model_name = sys.argv[3] if len(sys.argv) >= 4 else DEFAULT_MODEL
+    text_source = sys.argv[4].strip().lower() if len(sys.argv) >= 5 else ASSOC_SOURCE
+    if text_source not in {ASSOC_SOURCE, OCR_SOURCE}:
+        raise ValueError(f"text_source must be '{ASSOC_SOURCE}' or '{OCR_SOURCE}', got: {text_source}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device:", device)
 
     media_id = media_id_from_image_path(image_path)
     print("Media ID:", media_id)
+    print("Text source:", text_source)
 
-    report_path = Path(FORENSIC_REPORT_CSV)
-    if not report_path.exists():
-        raise FileNotFoundError(f"Forensic report not found: {FORENSIC_REPORT_CSV}")
-
-    print("[A] Reading forensic report CSV...")
-    df = pd.read_csv(report_path)
-
-    required_cols = {"event_type", "media_id", "message_text"}
-    missing = required_cols - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns in {FORENSIC_REPORT_CSV}: {sorted(missing)}")
-
-    print("[B] Filtering text rows for media_id...")
-    df_sub = df[(df["event_type"] == "text") & (df["media_id"].astype(str) == str(media_id))].copy()
-
-    texts = df_sub["message_text"].fillna("").astype(str).tolist()
-    texts = [t.strip() for t in texts if t and t.strip()]
+    print("[A] Reading image evidence text context...")
+    texts = texts_from_image_evidence(media_id, text_source)
+    if not texts and text_source == ASSOC_SOURCE:
+        texts = texts_from_forensic_report(media_id)
     print(f"[C] Found {len(texts)} matching text row(s).")
 
     mapped_text = " | ".join(texts)[:15000] if texts else ""
@@ -185,6 +225,7 @@ def main() -> None:
         "created_utc",
         "image_path",
         "media_id",
+        "text_source",
         "has_text_match",
         "n_text_rows",
         "mapped_text",
@@ -214,6 +255,7 @@ def main() -> None:
             "created_utc": utc_now(),
             "image_path": str(Path(image_path).resolve()),
             "media_id": media_id,
+            "text_source": text_source,
             "has_text_match": False,
             "n_text_rows": 0,
             "mapped_text": "",
@@ -242,6 +284,7 @@ def main() -> None:
         "created_utc": utc_now(),
         "image_path": str(Path(image_path).resolve()),
         "media_id": media_id,
+        "text_source": text_source,
         "has_text_match": True,
         "n_text_rows": len(texts),
         "mapped_text": mapped_text,

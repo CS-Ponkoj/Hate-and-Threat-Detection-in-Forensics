@@ -30,13 +30,15 @@ import torch
 from PIL import Image
 import open_clip
 
+from forensic_pipeline.paths import OPENCLIP_OUTPUTS_CSV, PROMPT_BANK_JSON, project_path
+
 
 # ---------- Model config ----------
 MODEL_NAME = "ViT-L-14"
 PRETRAINED = "laion2b_s32b_b82k"  # Valid tag in your open_clip install
 
 # Output CSV (created if missing)
-OUTPUT_CSV = "openclip_outputs.csv"
+OUTPUT_CSV = OPENCLIP_OUTPUTS_CSV
 
 # CSV schema (stable, append-only)
 CSV_COLUMNS = [
@@ -69,9 +71,8 @@ def safe_media_id(image_path: str) -> str:
 
 
 # ---------- Prompt bank loader ----------
-def load_prompt_bank(json_filename: str = "prompt_bank.json") -> Dict[str, List[str]]:
-    base_dir = Path(__file__).resolve().parent
-    path = base_dir / json_filename
+def load_prompt_bank(json_filename: str | Path = PROMPT_BANK_JSON) -> Dict[str, List[str]]:
+    path = project_path(json_filename)
 
     if not path.exists():
         raise FileNotFoundError(f"Prompt bank JSON not found: {path}")
@@ -194,7 +195,7 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device:", device)
 
-    prompt_bank_file = "prompt_bank.json"
+    prompt_bank_file = PROMPT_BANK_JSON
     prompt_bank = load_prompt_bank(prompt_bank_file)
 
     model, preprocess, tokenizer = load_model(device)
@@ -231,7 +232,7 @@ def main():
         "device": device,
         "model_name": MODEL_NAME,
         "pretrained_tag": PRETRAINED,
-        "prompt_bank_file": prompt_bank_file,
+        "prompt_bank_file": str(prompt_bank_file),
         "top_class": top_class,
         "top_prob": top_prob,
         "triage": triage,
