@@ -124,6 +124,6 @@ AI/ML researcher and Ph.D. candidate in Computer Science
 - [GitHub](https://github.com/CS-Ponkoj)
 - [Portfolio](https://ponkoj.com)
 
-## License
+
 
 No license file is currently included. Please contact the author before reusing the repository beyond review, education, or fair-use evaluation.
